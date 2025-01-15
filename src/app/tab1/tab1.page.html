@@ -1,18 +1,44 @@
 <ion-header [translucent]="true">
   <ion-toolbar>
-    <ion-title>
-      Tab 1
-    </ion-title>
+    <ion-title>Card Layout</ion-title>
   </ion-toolbar>
 </ion-header>
 
 <ion-content [fullscreen]="true">
-  <ion-header collapse="condense">
-    <ion-toolbar>
-      <ion-title size="large">Tab 1</ion-title>
-    </ion-toolbar>
-  </ion-header>
 
-  <app-explore-container name="Tab 1 page"></app-explore-container>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
+
+<div class="credit-card">
+  <div class="header">
+    <div class="logo-and-date">
+      <img src="assets/graphic-medzero-trademark.svg" alt="medZERO Trademark" class="logo" />
+      <div class="current-date">Jan 13, 2025</div>
+    </div>
+    <div class="balance-container">
+      <div class="balance">
+        <span class="amount">$4,621<span class="cents">.18</span></span>
+      </div>
+      <div class="label">
+        <span>Available to Spend</span>
+      </div>
+    </div>
+  </div>
+  <div class="action-button">
+    <ion-button expand="block" color="primary">Request Funds</ion-button>
+  </div>
+  <div class="details">
+    <div class="detail-item">
+      <span>Pre-qualified Spending Limit:</span>
+      <span>$5,000.00</span>
+    </div>
+    <div class="detail-item">
+      <span>Outstanding Balance:</span>
+      <span>$378.82</span>
+    </div>
+  </div>
+  <div class="footer">
+    <span class="cardholder">RYAN MURPHY</span>
+    <img src="assets/savage-logo.svg" alt="Savage Logo" class="footer-logo" />
+  </div>
+</div>
 </ion-content>
-<html>This is the html page</html>
