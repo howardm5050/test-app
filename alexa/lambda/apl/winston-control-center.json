@@ -199,7 +199,7 @@
                             "items": [
                               {
                                 "type": "PanelTitle",
-                                "title": "OVERDUE",
+                                "title": "OVERDUE / DUE TODAY",
                                 "titleColor": "@colorAlert"
                               },
                               {
@@ -215,7 +215,7 @@
                                 "items": [
                                   {
                                     "type": "Text",
-                                    "text": "• ${data.text} — due ${data.due}",
+                                    "text": "• ${data.text}  (${data.due})",
                                     "fontSize": "22dp",
                                     "color": "@colorTextPrimary",
                                     "paddingBottom": "2dp"
