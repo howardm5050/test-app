@@ -65,7 +65,11 @@ async function main() {
   }
 
   const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
-  const s3 = new S3Client({});
+  // Fall back to us-east-1 (where the SAM stack deploys) when the local AWS
+  // config has no default region set.
+  const s3 = new S3Client({
+    region: process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || "us-east-1",
+  });
 
   await s3.send(
     new PutObjectCommand({
