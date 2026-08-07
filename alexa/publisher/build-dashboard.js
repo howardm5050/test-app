@@ -23,7 +23,12 @@ function readIfExists(filePath) {
   }
 }
 
-/** Parse "2026-08-07", "8/4", "6/26", or "Fri 6/26" into a Date (current year for M/D). */
+function truncate(text, max) {
+  if (!text || text.length <= max) return text;
+  return text.slice(0, max - 1).trimEnd() + "…";
+}
+
+/** Parse "2026-08-07", "8/4", "6/26", "Fri 8/7", "TODAY 8/7" into a Date. */
 function parseDate(text, today) {
   if (!text) return null;
   const iso = text.match(/(\d{4})-(\d{2})-(\d{2})/);
@@ -41,24 +46,42 @@ function daysBetween(from, to) {
   return Math.round((to - from) / 86400000);
 }
 
-/** TASKS.md: open items with DUE: dates that have passed. */
+/**
+ * TASKS.md: open checkbox items with a DUE: marker anywhere in the line.
+ * Red-panel rules match Winston's own "Overdue / Due Today" convention:
+ * past dates, DUE: ASAP, and DUE: TODAY all qualify. Future dates don't.
+ */
 function parseOverdue(tasksMd, today) {
   if (!tasksMd) return [];
   const overdue = [];
-  const re = /^\s*-\s*\[ \]\s*(.+?)\s*—\s*DUE:\s*(.+?)\s*$/gm;
-  let match;
-  while ((match = re.exec(tasksMd)) !== null) {
-    const text = match[1].replace(/\*\*/g, "").trim();
-    const dueText = match[2].trim();
+  for (const line of tasksMd.split("\n")) {
+    const m = line.match(/^\s*-\s*\[ \]\s*(.+)$/);
+    if (!m || !/DUE:/i.test(m[1])) continue;
+    const body = m[1];
+    const dueMatch = body.match(/DUE:\s*(.*?)\s*$/i);
+    const dueText = dueMatch
+      ? dueMatch[1].replace(/\.+$/, "").trim()
+      : "";
+
+    const bold = body.match(/\*\*(.+?)\*\*/);
+    let text = bold ? bold[1] : body.split(" — ")[0];
+    text = truncate(text.replace(/\*\*/g, "").trim(), 80);
+
     const due = parseDate(dueText, today);
-    if (due && due < today) {
-      overdue.push({ text, due: dueText });
+    const isAsap = /\basap\b/i.test(dueText);
+    const isToday =
+      /\btoday\b/i.test(dueText) ||
+      (due && due.getTime() === today.getTime());
+    const isPast = due ? due < today : false;
+
+    if (isAsap || isToday || isPast) {
+      overdue.push({ text, due: dueText || "ASAP" });
     }
   }
   return overdue;
 }
 
-/** CLAUDE.md Cadence Tracker section. */
+/** CLAUDE.md Cadence Tracker section. Values truncated for the display. */
 function parseCadence(claudeMd) {
   const cadence = {
     touchesThisWeek: 0,
@@ -69,7 +92,7 @@ function parseCadence(claudeMd) {
   if (!claudeMd) return cadence;
   const grab = (re) => {
     const m = claudeMd.match(re);
-    return m ? m[1].trim() : null;
+    return m ? truncate(m[1].trim(), 48) : null;
   };
   cadence.lastLinkedIn =
     grab(/Last LinkedIn outreach:\s*(.+)/i) || cadence.lastLinkedIn;
@@ -78,16 +101,17 @@ function parseCadence(claudeMd) {
     cadence.lastEmailPhone;
   cadence.lastPipelineReview =
     grab(/Last pipeline review:\s*(.+)/i) || cadence.lastPipelineReview;
-  const touches = grab(/Outreach touches this week:\s*\[?(\d+)\]?/i);
-  if (touches) cadence.touchesThisWeek = parseInt(touches, 10);
+  const touches = claudeMd.match(/Outreach touches this week:\s*\[?(\d+)\]?/i);
+  if (touches) cadence.touchesThisWeek = parseInt(touches[1], 10);
   return cadence;
 }
 
 /**
- * CLAUDE.md pipeline table: flag rows whose most recent date is past the
- * follow-up window (7 days). Rows marked dormant / check-in-later are skipped.
+ * Fallback pipeline source: a markdown table under a "Pipeline" heading in
+ * CLAUDE.md, flagging rows past the 7-day window. Used only when the day
+ * plan has no Pipeline Alerts section.
  */
-function parsePipelineFlags(claudeMd, today) {
+function parsePipelineTable(claudeMd, today) {
   if (!claudeMd) return [];
   const flags = [];
   const lines = claudeMd.split("\n");
@@ -100,16 +124,15 @@ function parsePipelineFlags(claudeMd, today) {
     if (inPipeline && /^#{1,3}\s/.test(line)) {
       inPipeline = false;
     }
-    if (!inPipeline) continue;
-    if (!line.trim().startsWith("|")) continue;
-    if (/^\|[\s\-|:]+\|?$/.test(line.trim())) continue; // separator row
+    if (!inPipeline || !line.trim().startsWith("|")) continue;
+    if (/^\|[\s\-|:]+\|?$/.test(line.trim())) continue;
     const cells = line
       .split("|")
       .map((c) => c.trim())
       .filter(Boolean);
     if (cells.length < 2) continue;
     const name = cells[0].replace(/\*\*/g, "");
-    if (/^(name|opportunity|prospect|company)$/i.test(name)) continue; // header
+    if (/^(name|opportunity|prospect|company)$/i.test(name)) continue;
     if (/check in later|dormant|dead|closed/i.test(line)) continue;
     const dates = [];
     for (const cell of cells) {
@@ -130,6 +153,28 @@ function parsePipelineFlags(claudeMd, today) {
   return flags;
 }
 
+/** "FCS / Dan+Keith — 8 days silent. Push toward signature." → panel entry. */
+function parseAlertLine(raw) {
+  const clean = raw.replace(/\*\*/g, "").trim();
+  const dashIdx = clean.indexOf(" — ");
+  let name = dashIdx > 0 ? clean.slice(0, dashIdx) : clean;
+  let rest = dashIdx > 0 ? clean.slice(dashIdx + 3) : "";
+  let status = rest;
+  let action = "";
+  const sentences = rest.split(/(?<=\.)\s+/).filter(Boolean);
+  if (sentences.length > 1) {
+    action = sentences.pop().replace(/\.+$/, "");
+    status = sentences.join(" ").replace(/\.+$/, "");
+  } else {
+    status = rest.replace(/\.+$/, "");
+  }
+  return {
+    name: truncate(name.trim(), 40),
+    status: truncate(status.trim(), 80),
+    action: truncate(action.trim(), 80),
+  };
+}
+
 const BUCKET_KEYWORDS = [
   { key: /personal|faith|family/i, name: "Personal / Faith / Family" },
   { key: /money|admin/i, name: "Money / Admin" },
@@ -137,27 +182,54 @@ const BUCKET_KEYWORDS = [
   { key: /humboldt|consulting|advisory/i, name: "Humboldt (Consulting / Advisory)" },
 ];
 
-/** Latest day plan: checkbox items grouped under the four bucket headings. */
-function parseBuckets(planMd) {
+// Day-plan sections that are NOT buckets. Checked before bucket keywords so
+// "Pipeline Alerts (Humboldt)" routes to the pipeline panel, not the bucket.
+const NON_BUCKET_HEADING = /pipeline|overdue|due today|cadence|gap check|strava|read memory/i;
+
+/**
+ * Parse the latest day plan into { buckets, pipelineAlerts }.
+ * Bucket items come from checkbox lines under the four bucket headings;
+ * pipeline alerts come from any "Pipeline" section (checkboxes or bullets).
+ */
+function parsePlan(planMd) {
   const buckets = BUCKET_KEYWORDS.map((b) => ({ name: b.name, items: [] }));
-  if (!planMd) return buckets;
+  const pipelineAlerts = [];
+  if (!planMd) return { buckets, pipelineAlerts };
+
   let current = null;
+  let pipelineMode = false;
+  const seen = new Set();
+
   for (const line of planMd.split("\n")) {
     const heading = line.match(/^(?:#{1,4}|\*\*)\s*(.+?)\s*(?:\*\*)?$/);
     if (heading && !/^\s*-/.test(line)) {
-      const idx = BUCKET_KEYWORDS.findIndex((b) => b.key.test(heading[1]));
-      current = idx >= 0 ? buckets[idx] : null;
+      const title = heading[1];
+      if (NON_BUCKET_HEADING.test(title)) {
+        pipelineMode = /pipeline/i.test(title);
+        current = null;
+      } else {
+        pipelineMode = false;
+        const idx = BUCKET_KEYWORDS.findIndex((b) => b.key.test(title));
+        current = idx >= 0 ? buckets[idx] : null;
+      }
       continue;
     }
-    const item = line.match(/^\s*-\s*\[( |x|X)\]\s*(.+)$/);
-    if (item && current) {
-      current.items.push({
-        text: item[2].replace(/\*\*/g, "").trim(),
-        done: item[1].toLowerCase() === "x",
-      });
+
+    const bullet = line.match(/^\s*-\s*(?:\[( |x|X)\]\s*)?(.+)$/);
+    if (!bullet) continue;
+    const done = (bullet[1] || " ").toLowerCase() === "x";
+    const text = bullet[2].replace(/\*\*/g, "").trim();
+
+    if (pipelineMode) {
+      pipelineAlerts.push(parseAlertLine(text));
+    } else if (current) {
+      const key = text.toLowerCase().slice(0, 40);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      current.items.push({ text: truncate(text, 110), done });
     }
   }
-  return buckets;
+  return { buckets, pipelineAlerts };
 }
 
 const WEEKDAY_FOCUS = {
@@ -196,12 +268,16 @@ function buildDashboard(winstonDir) {
     weekday
   ];
 
+  const { buckets, pipelineAlerts } = parsePlan(planMd);
+
   return {
     updatedAt: new Date().toISOString(),
     focus: WEEKDAY_FOCUS[weekdayNum] || "Weekend — family first",
-    buckets: parseBuckets(planMd),
+    buckets,
     overdue: parseOverdue(tasksMd, today),
-    pipeline: parsePipelineFlags(claudeMd, today),
+    pipeline: pipelineAlerts.length
+      ? pipelineAlerts
+      : parsePipelineTable(claudeMd, today),
     cadence: parseCadence(claudeMd),
   };
 }

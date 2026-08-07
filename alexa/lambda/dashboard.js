@@ -67,8 +67,10 @@ function dashboardSpeech(data, source) {
   const pipeline = data.pipeline || [];
 
   if (overdue.length > 0) {
-    const noun = overdue.length === 1 ? "overdue item" : "overdue items";
-    parts.push(`${overdue.length} ${noun} — lead with ${overdue[0].text}.`);
+    const noun = overdue.length === 1 ? "item" : "items";
+    parts.push(
+      `${overdue.length} ${noun} overdue or due today — lead with ${overdue[0].text}.`
+    );
   } else {
     parts.push("Nothing overdue.");
   }
