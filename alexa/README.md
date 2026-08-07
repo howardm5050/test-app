@@ -3,8 +3,9 @@
 An Alexa custom skill that puts **Winston** — Howard's executive assistant, powered by Claude — on the Echo Show 11's display. You talk to it by voice; Winston answers out loud and renders the response on screen in a dark, glanceable layout sized for the 11" landscape display.
 
 ```
-"Alexa, open winston assistant"
-"ask what should I focus on today"
+"Alexa, open winston assistant"        → opens the control center
+"show my control center"               → re-renders the board any time
+"ask what should I focus on today"     → talk to Winston (Claude)
 "tell me how to structure my morning"
 ```
 
@@ -56,6 +57,35 @@ The session stays open after each answer, so you can keep going without re-invok
 ## Latency notes
 
 Alexa cuts the connection at ~8 seconds. The Lambda is tuned for that: `claude-opus-5` at `effort: "low"`, capped output, and a system prompt that keeps spoken answers to 1–3 sentences. If you see timeouts, the next step is Alexa **progressive responses** (a "one moment" filler while Claude thinks) — not yet wired in.
+
+## The control center
+
+Opening the skill (or saying "show my control center") renders a full-screen board on the Show 11:
+
+- **Left (56%)** — the four buckets, in Winston's canonical order, with ✓/○ item states
+- **Right (44%)** — **OVERDUE** (red), **PIPELINE — NEEDS ATTENTION** (amber, with the recommended action), and the **CADENCE** tracker
+- **Header** — today's focus line; **footer** — feed freshness
+
+Winston also speaks a short summary: overdue count first, then pipeline flags, then today's focus.
+
+### Feeding it live data
+
+The board reads a single JSON file. Set the Lambda env var `WINSTON_DASHBOARD_URL` to any HTTPS URL that returns it (an S3 object with a bucket policy or CloudFront in front works well). Without the env var it shows bundled sample data and says so.
+
+Schema (see `lambda/sample-dashboard.json` for a full example):
+
+```json
+{
+  "updatedAt": "2026-08-07T14:00:00Z",
+  "focus": "Thursday — email and phone outreach (Humboldt)",
+  "buckets": [{ "name": "medZERO Work", "items": [{ "text": "...", "done": false }] }],
+  "overdue": [{ "text": "Ping Elizabeth Kim", "due": "Tue 8/4" }],
+  "pipeline": [{ "name": "Berman", "status": "3 touches, no response", "action": "Move to Check In Later" }],
+  "cadence": { "touchesThisWeek": 4, "lastLinkedIn": "Tue 8/4", "lastEmailPhone": "Thu 7/31", "lastPipelineReview": "Fri 8/1" }
+}
+```
+
+The natural publisher is a Winston desktop session: whenever it saves the day plan or wrap, it also writes this JSON and uploads it (e.g. `aws s3 cp dashboard.json s3://.../winston-dashboard.json`). The Lambda caches the feed for 2 minutes and falls back to the last known state if the fetch fails.
 
 ## What this Winston knows
 

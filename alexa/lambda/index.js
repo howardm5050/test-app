@@ -2,9 +2,20 @@
 
 const Alexa = require("ask-sdk-core");
 const { askWinston, toSsmlSafe } = require("./winston");
+const { loadDashboard, dashboardSpeech } = require("./dashboard");
 const winstonDisplay = require("./apl/winston-display.json");
+const controlCenter = require("./apl/winston-control-center.json");
 
 const APL_TOKEN = "winstonDisplay";
+
+function dateLine() {
+  return new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    timeZone: "America/Los_Angeles",
+  });
+}
 
 function supportsApl(handlerInput) {
   const interfaces =
@@ -16,12 +27,6 @@ function addDisplay(handlerInput, responseBuilder, { userQuery, responseText }) 
   if (!supportsApl(handlerInput)) {
     return responseBuilder;
   }
-  const dateLine = new Date().toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    timeZone: "America/Los_Angeles",
-  });
   return responseBuilder.addDirective({
     type: "Alexa.Presentation.APL.RenderDocument",
     token: APL_TOKEN,
@@ -32,8 +37,42 @@ function addDisplay(handlerInput, responseBuilder, { userQuery, responseText }) 
         properties: {
           userQuery: userQuery || "",
           responseText: responseText || "",
-          dateLine,
+          dateLine: dateLine(),
         },
+      },
+    },
+  });
+}
+
+function addControlCenter(handlerInput, responseBuilder, data, source) {
+  if (!supportsApl(handlerInput)) {
+    return responseBuilder;
+  }
+  const footerLine =
+    source === "live"
+      ? `Updated ${data.updatedAt || "recently"}  ·  "ask ..." to talk to Winston`
+      : source === "stale"
+        ? `Feed unreachable — showing last known state  ·  "ask ..." to talk to Winston`
+        : `Sample data — set WINSTON_DASHBOARD_URL for a live feed  ·  "ask ..." to talk to Winston`;
+  return responseBuilder.addDirective({
+    type: "Alexa.Presentation.APL.RenderDocument",
+    token: APL_TOKEN,
+    document: controlCenter,
+    datasources: {
+      winston: {
+        focus: data.focus || "",
+        buckets: data.buckets || [],
+        overdue: data.overdue || [],
+        pipeline: data.pipeline || [],
+        cadence: {
+          touchesThisWeek: (data.cadence && data.cadence.touchesThisWeek) || 0,
+          lastLinkedIn: (data.cadence && data.cadence.lastLinkedIn) || "—",
+          lastEmailPhone: (data.cadence && data.cadence.lastEmailPhone) || "—",
+          lastPipelineReview:
+            (data.cadence && data.cadence.lastPipelineReview) || "—",
+        },
+        dateLine: dateLine(),
+        footerLine,
       },
     },
   });
@@ -45,16 +84,29 @@ const LaunchRequestHandler = {
       Alexa.getRequestType(handlerInput.requestEnvelope) === "LaunchRequest"
     );
   },
-  handle(handlerInput) {
+  async handle(handlerInput) {
+    const { data, source } = await loadDashboard();
     const speech =
-      "Winston here. What do you need, Howard? " +
-      "Ask me about your day, your pipeline, or anything else.";
-    return addDisplay(handlerInput, handlerInput.responseBuilder, {
-      userQuery: "",
-      responseText: "Winston here. What do you need, Howard?",
-    })
-      .speak(speech)
+      "Winston here. " + dashboardSpeech(data, source) + " What do you need?";
+    return addControlCenter(handlerInput, handlerInput.responseBuilder, data, source)
+      .speak(toSsmlSafe(speech))
       .reprompt("Still here. What do you need?")
+      .getResponse();
+  },
+};
+
+const ShowDashboardIntentHandler = {
+  canHandle(handlerInput) {
+    return (
+      Alexa.getRequestType(handlerInput.requestEnvelope) === "IntentRequest" &&
+      Alexa.getIntentName(handlerInput.requestEnvelope) === "ShowDashboardIntent"
+    );
+  },
+  async handle(handlerInput) {
+    const { data, source } = await loadDashboard();
+    return addControlCenter(handlerInput, handlerInput.responseBuilder, data, source)
+      .speak(toSsmlSafe(dashboardSpeech(data, source)))
+      .reprompt("Anything else?")
       .getResponse();
   },
 };
@@ -102,8 +154,9 @@ const HelpIntentHandler = {
   },
   handle(handlerInput) {
     const speech =
-      "I'm Winston, your executive assistant. Start a question with ask or " +
-      "tell me. For example: ask what should I focus on today.";
+      "I'm Winston, your executive assistant. Say show my control center for " +
+      "the board, or start a question with ask or tell me. For example: ask " +
+      "what should I focus on today.";
     return handlerInput.responseBuilder
       .speak(speech)
       .reprompt("What do you need?")
@@ -177,6 +230,7 @@ const ErrorHandler = {
 exports.handler = Alexa.SkillBuilders.custom()
   .addRequestHandlers(
     LaunchRequestHandler,
+    ShowDashboardIntentHandler,
     AskWinstonIntentHandler,
     HelpIntentHandler,
     FallbackIntentHandler,

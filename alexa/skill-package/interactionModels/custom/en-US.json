@@ -24,6 +24,22 @@
           "samples": []
         },
         {
+          "name": "ShowDashboardIntent",
+          "slots": [],
+          "samples": [
+            "show my control center",
+            "control center",
+            "show my board",
+            "show my day",
+            "show the dashboard",
+            "dashboard",
+            "show my plan",
+            "pull up my day",
+            "what's on my board",
+            "refresh the board"
+          ]
+        },
+        {
           "name": "AskWinstonIntent",
           "slots": [
             {
