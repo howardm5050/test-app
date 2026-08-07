@@ -68,25 +68,48 @@ Opening the skill (or saying "show my control center") renders a full-screen boa
 
 Winston also speaks a short summary: overdue count first, then pipeline flags, then today's focus.
 
-### Feeding it live data
+### Feeding it live data — the S3 publish pipeline
 
-The board reads a single JSON file. Set the Lambda env var `WINSTON_DASHBOARD_URL` to any HTTPS URL that returns it (an S3 object with a bucket policy or CloudFront in front works well). Without the env var it shows bundled sample data and says so.
-
-Schema (see `lambda/sample-dashboard.json` for a full example):
-
-```json
-{
-  "updatedAt": "2026-08-07T14:00:00Z",
-  "focus": "Thursday — email and phone outreach (Humboldt)",
-  "buckets": [{ "name": "medZERO Work", "items": [{ "text": "...", "done": false }] }],
-  "overdue": [{ "text": "Ping Elizabeth Kim", "due": "Tue 8/4" }],
-  "pipeline": [{ "name": "Berman", "status": "3 touches, no response", "action": "Move to Check In Later" }],
-  "cadence": { "touchesThisWeek": 4, "lastLinkedIn": "Tue 8/4", "lastEmailPhone": "Thu 7/31", "lastPipelineReview": "Fri 8/1" }
-}
+```
+Winston folder (CLAUDE.md, TASKS.md, plans/, memory/)
+        │  publisher/publish-winston.js
+        ▼
+s3://<bucket>/dashboard.json   ──▶  control center board
+s3://<bucket>/context.md       ──▶  Winston's brain (live memory in the prompt)
 ```
 
-The natural publisher is a Winston desktop session: whenever it saves the day plan or wrap, it also writes this JSON and uploads it (e.g. `aws s3 cp dashboard.json s3://.../winston-dashboard.json`). The Lambda caches the feed for 2 minutes and falls back to the last known state if the fetch fails.
+The `publisher/` script parses your real Winston files — no hand-maintained JSON:
+
+- **`dashboard.json`** — four buckets from the latest `plans/*-day-plan.md`, overdue items from `TASKS.md` `DUE:` dates (LA timezone), pipeline flags from the CLAUDE.md pipeline table (>7 days since last touch = "Send nudge", ≥21 days = "3-week rule — consider Check In Later"; dormant/check-in-later rows skipped), and the Cadence Tracker.
+- **`context.md`** — a memory bundle (CLAUDE.md + TASKS.md + latest plan + latest wrap, capped per file) that the Lambda injects into Winston's prompt, so voice answers use your real tasks, names, and dates.
+
+**One-time setup:**
+
+```bash
+# 1. Private bucket (keep public access blocked — this is pipeline data)
+aws s3 mb s3://winston-echo-state
+aws s3api put-public-access-block --bucket winston-echo-state \
+  --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+
+# 2. Let the skill's Lambda read it — add to the Lambda execution role:
+#    { "Effect": "Allow", "Action": "s3:GetObject",
+#      "Resource": "arn:aws:s3:::winston-echo-state/*" }
+
+# 3. Lambda env vars:
+#    WINSTON_S3_BUCKET=winston-echo-state
+#    (optional) WINSTON_DASHBOARD_KEY=dashboard.json  WINSTON_CONTEXT_KEY=context.md
+```
+
+**Publishing (from your machine, using your local AWS credentials):**
+
+```bash
+cd alexa/publisher && npm install   # first time only
+node publish-winston.js --dir ~/path/to/winston --bucket winston-echo-state
+node publish-winston.js --dir ~/path/to/winston --dry-run   # build only, inspect publisher/out/
+```
+
+Add that publish command to the end of Winston's day-plan and day-wrap routines (or a cron/launchd job) and the Echo stays current — the Lambda caches S3 reads for 2 minutes and falls back to the last known state, then sample data. A plain HTTPS feed via `WINSTON_DASHBOARD_URL` still works if you'd rather not use S3, but the S3 path is preferred: the bucket stays private and the Lambda reads with its IAM role.
 
 ## What this Winston knows
 
-This is a standalone Winston: it carries the persona (direct, four-bucket day structure, medZERO revenue test, Humboldt channel rules, protected evening time) but **not** your local files (CLAUDE.md, TASKS.md, plans). It will say so when asked about live data. Wiring it to real task/pipeline state would mean giving the Lambda a data source (e.g., an S3-synced copy of the Winston files) — a good phase two.
+With the S3 pipeline configured, Echo Winston knows your live state: the published `context.md` (working memory, task board, latest plan and wrap) is injected into every Claude call, after the cached persona block so the prompt cache stays warm. Without it, Winston falls back to persona-only and says so when asked about live data. It still can't see your calendar or inbox — it will tell you that plainly rather than guess.

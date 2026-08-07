@@ -2,27 +2,46 @@
 
 const fs = require("fs");
 const path = require("path");
+const { getS3Text } = require("./s3");
 
 const SAMPLE = JSON.parse(
   fs.readFileSync(path.join(__dirname, "sample-dashboard.json"), "utf8")
 );
 
-// Live dashboard state is published by Winston desktop sessions as a JSON
-// file (see README). Cache briefly so repeat renders in one session are fast.
+// Live dashboard state is published by the publisher script (see
+// alexa/publisher/). Preferred source is a private S3 bucket read with the
+// Lambda's IAM role; an HTTPS URL is supported as a fallback.
 const CACHE_MS = 2 * 60 * 1000;
-let cache = { data: null, fetchedAt: 0 };
+let urlCache = { data: null, fetchedAt: 0 };
 
 /**
  * Load the dashboard state.
  * Returns { data, source } where source is "live" | "stale" | "sample".
  */
 async function loadDashboard() {
+  const bucket = process.env.WINSTON_S3_BUCKET;
+  if (bucket) {
+    const key = process.env.WINSTON_DASHBOARD_KEY || "dashboard.json";
+    const result = await getS3Text(bucket, key);
+    if (result) {
+      try {
+        return {
+          data: JSON.parse(result.body),
+          source: result.fresh ? "live" : "stale",
+        };
+      } catch (err) {
+        console.error("Dashboard JSON parse failed:", err.message);
+      }
+    }
+    return { data: SAMPLE, source: "sample" };
+  }
+
   const url = process.env.WINSTON_DASHBOARD_URL;
   if (!url) {
     return { data: SAMPLE, source: "sample" };
   }
-  if (cache.data && Date.now() - cache.fetchedAt < CACHE_MS) {
-    return { data: cache.data, source: "live" };
+  if (urlCache.data && Date.now() - urlCache.fetchedAt < CACHE_MS) {
+    return { data: urlCache.data, source: "live" };
   }
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(2500) });
@@ -30,12 +49,12 @@ async function loadDashboard() {
       throw new Error(`HTTP ${res.status}`);
     }
     const data = await res.json();
-    cache = { data, fetchedAt: Date.now() };
+    urlCache = { data, fetchedAt: Date.now() };
     return { data, source: "live" };
   } catch (err) {
     console.error("Dashboard fetch failed:", err);
-    if (cache.data) {
-      return { data: cache.data, source: "stale" };
+    if (urlCache.data) {
+      return { data: urlCache.data, source: "stale" };
     }
     return { data: SAMPLE, source: "sample" };
   }

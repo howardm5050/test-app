@@ -1,6 +1,7 @@
 "use strict";
 
 const Anthropic = require("@anthropic-ai/sdk");
+const { getS3Text } = require("./s3");
 
 // Reads ANTHROPIC_API_KEY from the Lambda environment.
 const client = new Anthropic();
@@ -26,8 +27,20 @@ Voice rules (this is a spoken conversation):
 - Answer in 1-3 short sentences unless Howard asks for a full plan or list.
 - Plain spoken prose only: no markdown, no bullets, no headers, no emoji, no URLs.
 - If asked for a day plan, walk the four buckets briefly, one line each.
-- If a question needs data you don't have (his files, calendar, inbox), say so plainly and give your best general answer.
+- When live context from Howard's Winston files is provided below, answer from it — real tasks, real pipeline names, real dates. If a question needs data the context doesn't cover (calendar, inbox), say so plainly and give your best general answer.
 - End with the answer, not with offers of more help.`;
+
+/**
+ * Load the published context.md bundle (CLAUDE.md, TASKS.md, latest
+ * plan/wrap) from S3, if configured. Returns a string or null.
+ */
+async function loadLiveContext() {
+  const bucket = process.env.WINSTON_S3_BUCKET;
+  if (!bucket) return null;
+  const key = process.env.WINSTON_CONTEXT_KEY || "context.md";
+  const result = await getS3Text(bucket, key);
+  return result ? result.body : null;
+}
 
 /**
  * Send a user utterance to Winston and return { speech, history }.
@@ -37,16 +50,27 @@ Voice rules (this is a spoken conversation):
 async function askWinston(utterance, history = []) {
   const messages = [...history, { role: "user", content: utterance }];
 
+  // The stable persona carries the cache breakpoint; the live context block
+  // comes after it so context refreshes don't invalidate the cached prefix.
+  const system = [
+    {
+      type: "text",
+      text: WINSTON_SYSTEM,
+      cache_control: { type: "ephemeral" },
+    },
+  ];
+  const liveContext = await loadLiveContext();
+  if (liveContext) {
+    system.push({
+      type: "text",
+      text: `Live context from Howard's Winston files (may be a few minutes stale):\n\n${liveContext}`,
+    });
+  }
+
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: MAX_TOKENS,
-    system: [
-      {
-        type: "text",
-        text: WINSTON_SYSTEM,
-        cache_control: { type: "ephemeral" },
-      },
-    ],
+    system,
     output_config: { effort: "low" },
     messages,
   });

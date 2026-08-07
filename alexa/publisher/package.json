@@ -1,0 +1,17 @@
+{
+  "name": "winston-publisher",
+  "version": "1.0.0",
+  "description": "Builds Winston's dashboard.json + context.md and publishes them to S3 for the Echo Show control center",
+  "main": "publish-winston.js",
+  "bin": {
+    "publish-winston": "./publish-winston.js"
+  },
+  "scripts": {
+    "publish": "node publish-winston.js",
+    "dry-run": "node publish-winston.js --dry-run"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.600.0"
+  }
+}
