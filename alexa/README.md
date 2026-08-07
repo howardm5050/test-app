@@ -35,7 +35,23 @@ Echo Show 11 ──▶ Alexa Skill (voice model) ──▶ AWS Lambda (lambda/)
    - use the self-hosted path below, where `ANTHROPIC_API_KEY` is a normal Lambda environment variable (recommended).
 4. **Test tab** → enable testing in Development → say *"open winston assistant"*. It will also appear on your own Echo Show 11 automatically (same Amazon account).
 
-## Setup — self-hosted Lambda (recommended for the API key)
+## Setup — one command with SAM (recommended)
+
+`template.yaml` stands up everything on the AWS side: the Lambda (Node 20, 10s timeout), the private S3 state bucket with public access blocked, the `s3:GetObject` policy, env vars, and the Alexa trigger permission. Needs the [SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html) and your AWS credentials:
+
+```bash
+cd alexa
+sam build
+sam deploy --guided          # prompts for AnthropicApiKey (hidden) and bucket name
+```
+
+Then:
+
+1. Take the **LambdaArn** output → Alexa developer console → Create Custom skill → paste the interaction model, enable APL, set the endpoint to that ARN.
+2. Redeploy once with the skill ID to lock the trigger: `sam deploy --parameter-overrides AlexaSkillId=amzn1.ask.skill.xxxx`
+3. Publish your state: `cd publisher && npm install && node publish-winston.js --dir ~/your-winston-folder --bucket <StateBucket output>`
+
+## Setup — self-hosted Lambda (manual)
 
 1. Create a Node.js 20 Lambda in AWS. Upload the `lambda/` folder (run `npm install` inside it first, zip it, upload).
 2. Set the environment variable `ANTHROPIC_API_KEY`.

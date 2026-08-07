@@ -1,0 +1,72 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Winston Echo Show skill backend: Lambda + private S3 state bucket.
+  Deploy with: sam build && sam deploy --guided (run from the alexa/ directory).
+
+Parameters:
+  AnthropicApiKey:
+    Type: String
+    NoEcho: true
+    Description: Anthropic API key used by the skill Lambda.
+  StateBucketName:
+    Type: String
+    Default: winston-echo-state
+    Description: Name for the private S3 bucket holding dashboard.json and context.md.
+  AlexaSkillId:
+    Type: String
+    Default: ''
+    Description: >
+      Alexa Skill ID (amzn1.ask.skill...). Leave empty on first deploy —
+      create the skill in the developer console using the Lambda ARN output,
+      then redeploy with this parameter set to lock the trigger to your skill.
+
+Conditions:
+  HasSkillId: !Not [!Equals [!Ref AlexaSkillId, '']]
+
+Resources:
+  StateBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref StateBucketName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+
+  WinstonFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: winston-echo-skill
+      Description: Alexa skill backend for Winston on the Echo Show 11
+      CodeUri: lambda/
+      Handler: index.handler
+      Runtime: nodejs20.x
+      Timeout: 10
+      MemorySize: 512
+      Environment:
+        Variables:
+          ANTHROPIC_API_KEY: !Ref AnthropicApiKey
+          WINSTON_S3_BUCKET: !Ref StateBucketName
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: s3:GetObject
+              Resource: !Sub '${StateBucket.Arn}/*'
+
+  AlexaTriggerPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref WinstonFunction
+      Principal: alexa-appkit.amazon.com
+      EventSourceToken: !If [HasSkillId, !Ref AlexaSkillId, !Ref 'AWS::NoValue']
+
+Outputs:
+  LambdaArn:
+    Description: Paste this as the skill endpoint in the Alexa developer console.
+    Value: !GetAtt WinstonFunction.Arn
+  StateBucket:
+    Description: Publish target for publisher/publish-winston.js --bucket.
+    Value: !Ref StateBucket
