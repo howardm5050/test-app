@@ -1,0 +1,128 @@
+{
+  "type": "APL",
+  "version": "2023.3",
+  "license": "Winston display template for Echo Show 11 (hub landscape)",
+  "theme": "dark",
+  "import": [
+    {
+      "name": "alexa-layouts",
+      "version": "1.7.0"
+    }
+  ],
+  "resources": [
+    {
+      "colors": {
+        "colorBackground": "#0E1420",
+        "colorPanel": "#182236",
+        "colorAccent": "#D9A441",
+        "colorTextPrimary": "#F5F1E8",
+        "colorTextSecondary": "#8FA0BC"
+      }
+    }
+  ],
+  "mainTemplate": {
+    "parameters": ["payload"],
+    "items": [
+      {
+        "type": "Container",
+        "width": "100vw",
+        "height": "100vh",
+        "direction": "column",
+        "items": [
+          {
+            "type": "Frame",
+            "width": "100vw",
+            "backgroundColor": "@colorBackground",
+            "position": "absolute",
+            "height": "100vh"
+          },
+          {
+            "type": "Container",
+            "width": "100vw",
+            "paddingLeft": "@spacingXLarge",
+            "paddingRight": "@spacingXLarge",
+            "paddingTop": "@spacingLarge",
+            "direction": "row",
+            "alignItems": "center",
+            "items": [
+              {
+                "type": "Text",
+                "text": "WINSTON",
+                "fontSize": "34dp",
+                "fontWeight": "700",
+                "letterSpacing": "4dp",
+                "color": "@colorAccent"
+              },
+              {
+                "type": "Text",
+                "text": "Executive Assistant",
+                "fontSize": "22dp",
+                "color": "@colorTextSecondary",
+                "paddingLeft": "@spacingMedium",
+                "grow": 1
+              },
+              {
+                "type": "Text",
+                "text": "${payload.winston.properties.dateLine}",
+                "fontSize": "22dp",
+                "color": "@colorTextSecondary"
+              }
+            ]
+          },
+          {
+            "type": "Container",
+            "grow": 1,
+            "width": "100vw",
+            "paddingLeft": "@spacingXLarge",
+            "paddingRight": "@spacingXLarge",
+            "paddingTop": "@spacingMedium",
+            "paddingBottom": "@spacingMedium",
+            "items": [
+              {
+                "type": "Text",
+                "when": "${payload.winston.properties.userQuery != ''}",
+                "text": "\"${payload.winston.properties.userQuery}\"",
+                "fontSize": "24dp",
+                "fontStyle": "italic",
+                "color": "@colorTextSecondary",
+                "paddingBottom": "@spacingSmall"
+              },
+              {
+                "type": "ScrollView",
+                "grow": 1,
+                "items": [
+                  {
+                    "type": "Frame",
+                    "backgroundColor": "@colorPanel",
+                    "borderRadius": "16dp",
+                    "items": [
+                      {
+                        "type": "Text",
+                        "text": "${payload.winston.properties.responseText}",
+                        "fontSize": "30dp",
+                        "lineHeight": 1.4,
+                        "color": "@colorTextPrimary",
+                        "paddingLeft": "@spacingLarge",
+                        "paddingRight": "@spacingLarge",
+                        "paddingTop": "@spacingLarge",
+                        "paddingBottom": "@spacingLarge"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "Text",
+            "text": "Try: \"ask what should I focus on today\"  ·  \"tell me my four buckets\"",
+            "fontSize": "20dp",
+            "color": "@colorTextSecondary",
+            "textAlign": "center",
+            "paddingBottom": "@spacingMedium"
+          }
+        ]
+      }
+    ]
+  }
+}

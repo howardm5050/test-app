@@ -1,0 +1,16 @@
+{
+  "name": "winston-alexa-skill",
+  "version": "1.0.0",
+  "description": "Alexa skill backend for Winston, Howard's executive assistant, on the Echo Show 11",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --test"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "ask-sdk-core": "^2.14.0",
+    "ask-sdk-model": "^1.86.0",
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@aws-sdk/client-s3": "^3.600.0"
+  }
+}

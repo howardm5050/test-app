@@ -1,0 +1,66 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "winston assistant",
+      "intents": [
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.NavigateHomeIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.FallbackIntent",
+          "samples": []
+        },
+        {
+          "name": "ShowDashboardIntent",
+          "slots": [],
+          "samples": [
+            "show my control center",
+            "control center",
+            "show my board",
+            "show my day",
+            "show the dashboard",
+            "dashboard",
+            "show my plan",
+            "pull up my day",
+            "what's on my board",
+            "refresh the board"
+          ]
+        },
+        {
+          "name": "AskWinstonIntent",
+          "slots": [
+            {
+              "name": "query",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "ask {query}",
+            "ask winston {query}",
+            "tell me {query}",
+            "tell winston {query}",
+            "question {query}",
+            "i want to know {query}",
+            "help me with {query}",
+            "what about {query}",
+            "how about {query}",
+            "winston {query}"
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "updatedAt": "2026-08-07T14:00:00Z",
+  "focus": "Thursday — email and phone outreach (Humboldt)",
+  "buckets": [
+    {
+      "name": "Personal / Faith / Family",
+      "items": [
+        { "text": "FirstWord scripture + prayer", "done": true },
+        { "text": "Workout", "done": false },
+        { "text": "Meredith AM check-in", "done": true }
+      ]
+    },
+    {
+      "name": "Money / Admin",
+      "items": [
+        { "text": "Daily account review", "done": false }
+      ]
+    },
+    {
+      "name": "medZERO Work",
+      "items": [
+        { "text": "Follow up GLP-1 launch partner", "done": false },
+        { "text": "Series A data room punch list", "done": false }
+      ]
+    },
+    {
+      "name": "Humboldt (Consulting / Advisory)",
+      "items": [
+        { "text": "Email/phone outreach block — 5 touches", "done": false },
+        { "text": "Prep Friday pipeline review", "done": false }
+      ]
+    }
+  ],
+  "overdue": [
+    { "text": "Ping Elizabeth Kim", "due": "Tue 8/4" }
+  ],
+  "pipeline": [
+    {
+      "name": "Berman",
+      "status": "3 touches over 4 weeks, no response",
+      "action": "Move to Check In Later, resurface in 90 days"
+    },
+    {
+      "name": "Elizabeth Kim",
+      "status": "7 days past follow-up window",
+      "action": "Send nudge draft"
+    }
+  ],
+  "cadence": {
+    "touchesThisWeek": 4,
+    "lastLinkedIn": "Tue 8/4",
+    "lastEmailPhone": "Thu 7/31",
+    "lastPipelineReview": "Fri 8/1"
+  }
+}
